@@ -11,10 +11,33 @@ Contient tous les fichiers source du projet.
 Contient les fichiers `.class` compilés à partir des sources.  
 Ce dossier est généré par la commande `javac` et sert de point de départ à l’exécution du programme (`java -cp build ...`).
 
-### Dossier `data`
-Doit contenir les données nécessaires au fonctionnement du programme, notamment :
-- les fichiers GTFS (`stops.csv`, `trips.csv`, `routes.csv`, `stop_times.csv`)  
-- par agence de transport (`STIB`, `SNCB`, `TEC`, `DELIJN`)  
+### Dossiers `ressources` et `data`
+Téléchargez le dossier zip `GTFS.zip` se trouvant dans le dossier `ressources`, extrayez le dossier `GTFS` et placez le dans le dossier `data`. Ce dernier doit donc contenir : 
+
+```
+.
+└── GTFS
+    ├── DELIJN
+    │   ├── routes.csv
+    │   ├── stop_times.csv
+    │   ├── stops.csv
+    │   └── trips.csv
+    ├── SNCB
+    │   ├── routes.csv
+    │   ├── stop_times.csv
+    │   ├── stops.csv
+    │   └── trips.csv
+    ├── STIB
+    │   ├── routes.csv
+    │   ├── stop_times.csv
+    │   ├── stops.csv
+    │   └── trips.csv
+    └── TEC
+        ├── routes.csv
+        ├── stop_times.csv
+        ├── stops.csv
+        └── trips.csv
+``` 
 
 ---
 

@@ -55,7 +55,7 @@ public class ItineraryFinder {
         }
 
         // Aucun chemin trouvé
-        System.out.println("Aucun itinéraire trouvé de " + stopFrom + " vers " + stopTo + ".");
+        // System.out.println("Aucun itinéraire trouvé de " + stopFrom + " vers " + stopTo + ".");
         return List.of();
     }
 
