@@ -7,10 +7,16 @@ import java.util.Objects;
 public class Node {
     public String stopId;
     public LocalTime time;
+    public String tripId;
 
     public Node(String stopId, LocalTime time) {
+        this(stopId, time, null);
+    }
+
+    public Node(String stopId, LocalTime time, String tripId) {
         this.stopId = stopId;
         this.time = time;
+        this.tripId = tripId;
     }
 
     @Override
@@ -18,16 +24,18 @@ public class Node {
         if (this == o) return true;
         if (!(o instanceof Node)) return false;
         Node node = (Node) o;
-        return stopId.equals(node.stopId) && time.equals(node.time);
+        return Objects.equals(stopId, node.stopId)
+                && Objects.equals(time, node.time)
+                && Objects.equals(tripId, node.tripId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(stopId, time);
+        return Objects.hash(stopId, time, tripId);
     }
 
     @Override
     public String toString() {
-        return stopId + " @ " + time;
+        return stopId + " @ " + time + (tripId != null ? " [" + tripId + "]" : "");
     }
 }

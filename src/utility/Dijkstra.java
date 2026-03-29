@@ -7,10 +7,10 @@ public class Dijkstra {
     // Stocke la distance minimale connue depuis la source vers chaque nœud
     public static Map<Node, Integer> distances;
 
-    // Stocke le noeud précédent dans le plus court chemin pour chaque nœud
+    // Stocke le noeud précédent dans le plus court way pour chaque nœud
     public static Map<Node, Node> previous;
 
-    // Calcule les plus courts chemins depuis le nœud source vers tous les autres nœuds du graphe
+    // Calcule les plus courts ways depuis le nœud source vers tous les autres nœuds du graphe
     public static void findPath(Graph graph, Node source) {
         distances = new HashMap<>();
         previous = new HashMap<>();
@@ -27,7 +27,7 @@ public class Dijkstra {
                 Node neighbor = edge.to;
                 int newDist = distances.get(current) + edge.duration;
 
-                // Si un chemin plus court vers le voisin est trouvé
+                // Si un way plus court vers le voisin est trouvé
                 if (!distances.containsKey(neighbor) || newDist < distances.get(neighbor)) {
                     distances.put(neighbor, newDist);
                     previous.put(neighbor, current);
@@ -37,7 +37,7 @@ public class Dijkstra {
         }
     }
 
-    // Construit le plus court chemin depuis la source vers un nœud donné
+    // Construit le plus court way depuis la source vers un nœud donné
     public static List<Node> getShortestPathTo(Node destination) {
         List<Node> path = new ArrayList<>();
         for (Node at = destination; at != null; at = previous.get(at)) {

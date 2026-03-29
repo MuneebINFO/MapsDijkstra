@@ -1,6 +1,8 @@
+
 import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -10,39 +12,43 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.Scanner;
 
-import utility.CsvLoader;
-import utility.Edge;
-import utility.GeoUtils;
-import utility.Graph;
-import utility.ItineraryFinder;
-import utility.Node;
-import utility.Route;
-import utility.Stop;
-import utility.StopTime;
-import utility.Trip;
+import utility.*;
 
 public class Main {
 
-    static Map<String, Stop> stops = new HashMap<>();
-    static Map<String, Route> routes = new HashMap<>();
-    static Map<String, Trip> trips = new HashMap<>();
-    static Map<String, List<StopTime>> stopTimes = new HashMap<>();
+    private static final double MAX_WALKING_DISTANCE = 750.0;
+    private static final double WALKING_SPEED = 1.4;
+    private static final int MIN_WAIT_DURATION = 60;
+    private static final int MIN_TRANSFER_DURATION = 90;
 
-    // Charge tous les arrets des agences et renvoie les IDs de depart et d'arrivee
-    public static List<List<String>> loadStopData(String nomDepart, String nomArrivee) {
+    private static Map<String, Stop> stops = new HashMap<>();
+    private static Map<String, Route> routes = new HashMap<>();
+    private static Map<String, Trip> trips = new HashMap<>();
+    private static Map<String, List<StopTime>> stopTimes = new HashMap<>();
+
+    private static void loadData(LocalTime timeDeparture) {
         try {
-            System.out.println("Chargement des arrets...");
-            String[] agencies = {"STIB", "SNCB", "DELIJN", "TEC"};
+            System.out.println("\nLoading data:");
+            List<String> agencies = List.of("STIB", "SNCB", "DELIJN", "TEC");
             for (String agency : agencies) {
+                System.out.println("   Loading " + agency + "...");
                 stops.putAll(CsvLoader.loadStops("data/GTFS/" + agency + "/stops.csv"));
+                routes.putAll(CsvLoader.loadRoutes("data/GTFS/" + agency + "/routes.csv"));
+                trips.putAll(CsvLoader.loadTrips("data/GTFS/" + agency + "/trips.csv"));
+                stopTimes.putAll(CsvLoader.loadStopTimes("data/GTFS/" + agency + "/stop_times.csv", timeDeparture));
+                System.out.println("   Finished loading " + agency + ".");
             }
-            System.out.println("Chargement des arrets termine.\n");
+            System.out.println("Loading complete.\n");
         } catch (IOException e) {
-            System.err.println("Erreur lors du chargement des stops: " + e.getMessage());
+            System.err.println("Error while loading files: " + e.getMessage());
             e.printStackTrace();
         }
+    }
 
+    // Returns the IDs of the departure and arrival stops
+    private static List<List<String>> getStopIDs(String nomDepart, String nomArrivee) {
         List<String> allStopStartID = new ArrayList<>();
         List<String> allStopEndID = new ArrayList<>();
         List<List<String>> allStopIDs = new ArrayList<>();
@@ -62,30 +68,8 @@ public class Main {
         return allStopIDs;
     }
 
-    // Charge les donnees complementaires pour chaque agence specifiee
-    public static void loadOtherData(LocalTime heureDepart) {
-        try {
-            System.out.println("\nChargement des donnees:");
-            List<String> agencies = List.of("STIB", "SNCB", "DELIJN", "TEC");
-            for (String agency : agencies) {
-                System.out.println("   Chargement " + agency + "...");
-                routes.putAll(CsvLoader.loadRoutes("data/GTFS/" + agency + "/routes.csv"));
-                trips.putAll(CsvLoader.loadTrips("data/GTFS/" + agency + "/trips.csv"));
-                stopTimes.putAll(CsvLoader.loadStopTimes("data/GTFS/" + agency + "/stop_times.csv", heureDepart));
-                System.out.println("   Chargement " + agency + " termine.");
-            }
-            System.out.println("Chargement termine.\n");
-        } catch (IOException e) {
-            System.err.println("Erreur lors du chargement des fichiers : " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    // Ajoute des aretes WALK dans le graphe entre des arrets proches
-    public static void addWalkingEdges(Graph graph, Collection<Stop> stops, Set<String> relevantStopIds) {
-        final double MAX_WALKING_DISTANCE = 3000.0;
-        final double WALKING_SPEED = 1.4;
-
+    // Adds WALK edges in the graph between nearby stops
+    private static void addWalkingEdges(Graph graph, Collection<Stop> stops, Set<String> relevantStopIds) {
         Map<String, List<Node>> stopIdToNodes = new HashMap<>();
         for (Node node : graph.getAllNodes()) {
             stopIdToNodes.computeIfAbsent(node.stopId, k -> new ArrayList<>()).add(node);
@@ -111,29 +95,16 @@ public class Main {
                 }
 
                 int estimatedTime = (int) (dist / WALKING_SPEED);
-
                 List<Node> nodesA = stopIdToNodes.getOrDefault(stopA.id, List.of());
                 List<Node> nodesB = stopIdToNodes.getOrDefault(stopB.id, List.of());
-
-                for (Node a : nodesA) {
-                    for (Node b : nodesB) {
-                        if (a.time.isBefore(b.time)) {
-                            int delta = (int) Duration.between(a.time, b.time).getSeconds();
-
-                            if (Math.abs(delta - estimatedTime) <= 90) {
-                                graph.addEdge(a, b, delta, "WALK", null, null);
-                            }
-                        }
-                    }
-                }
+                addTimedEdges(graph, nodesA, nodesB, estimatedTime, "WALK");
+                addTimedEdges(graph, nodesB, nodesA, estimatedTime, "WALK");
             }
         }
     }
 
-    public static void addTransferEdges(Graph graph, Collection<Stop> stops) {
+    private static void addTransferEdges(Graph graph, Collection<Stop> stops) {
         final double MAX_DISTANCE_METERS = 100.0;
-        final int TRANSFER_DURATION = 60;
-        final int TIME_TOLERANCE = 60;
         final double GRID_SIZE_METERS = 100.0;
 
         Map<String, List<Stop>> grid = new HashMap<>();
@@ -169,31 +140,59 @@ public class Main {
 
                         List<Node> nodesA = new ArrayList<>(stopIdToNodes.getOrDefault(stop.id, List.of()));
                         List<Node> nodesB = new ArrayList<>(stopIdToNodes.getOrDefault(other.id, List.of()));
-
-                        nodesA.sort(Comparator.comparing(n -> n.time));
-                        nodesB.sort(Comparator.comparing(n -> n.time));
-
-                        int i = 0;
-                        int j = 0;
-                        while (i < nodesA.size() && j < nodesB.size()) {
-                            Node n1 = nodesA.get(i);
-                            Node n2 = nodesB.get(j);
-
-                            int delta = (int) Duration.between(n1.time, n2.time).getSeconds();
-
-                            if (Math.abs(delta - TRANSFER_DURATION) <= TIME_TOLERANCE) {
-                                graph.addEdge(n1, n2, TRANSFER_DURATION, "TRANSFER", null, null);
-                                graph.addEdge(n2, n1, TRANSFER_DURATION, "TRANSFER", null, null);
-                                i++;
-                                j++;
-                            } else if (n1.time.isBefore(n2.time)) {
-                                i++;
-                            } else {
-                                j++;
-                            }
-                        }
+                        addTimedEdges(graph, nodesA, nodesB, MIN_TRANSFER_DURATION, "TRANSFER");
+                        addTimedEdges(graph, nodesB, nodesA, MIN_TRANSFER_DURATION, "TRANSFER");
                     }
                 }
+            }
+        }
+    }
+
+    private static void addWaitingEdges(Graph graph) {
+        Map<String, List<Node>> stopIdToNodes = new HashMap<>();
+        for (Node node : graph.getAllNodes()) {
+            stopIdToNodes.computeIfAbsent(node.stopId, k -> new ArrayList<>()).add(node);
+        }
+
+        for (List<Node> nodes : stopIdToNodes.values()) {
+            nodes.sort(Comparator.comparing(n -> n.time));
+
+            for (int i = 0; i < nodes.size() - 1; i++) {
+                Node from = nodes.get(i);
+                Node to = nodes.get(i + 1);
+                int delta = (int) Duration.between(from.time, to.time).getSeconds();
+
+                if (delta >= MIN_WAIT_DURATION) {
+                    graph.addEdge(from, to, delta, "WAIT", null, null);
+                }
+            }
+        }
+    }
+
+    private static void addTimedEdges(Graph graph, List<Node> fromNodes, List<Node> toNodes, int minimumDuration, String mode) {
+        if (fromNodes.isEmpty() || toNodes.isEmpty()) {
+            return;
+        }
+
+        fromNodes.sort(Comparator.comparing(n -> n.time));
+        toNodes.sort(Comparator.comparing(n -> n.time));
+
+        int targetIndex = 0;
+        for (Node from : fromNodes) {
+            LocalTime earliestArrival = from.time.plusSeconds(minimumDuration);
+
+            while (targetIndex < toNodes.size() && toNodes.get(targetIndex).time.isBefore(earliestArrival)) {
+                targetIndex++;
+            }
+
+            if (targetIndex >= toNodes.size()) {
+                break;
+            }
+
+            Node to = toNodes.get(targetIndex);
+            int delta = (int) Duration.between(from.time, to.time).getSeconds();
+            if (delta >= minimumDuration) {
+                graph.addEdge(from, to, delta, mode, null, null);
             }
         }
     }
@@ -211,7 +210,7 @@ public class Main {
         return x + "_" + y;
     }
 
-    public static Set<String> buildReachableStopIds(Graph graph, String stopFrom, LocalTime startTime) {
+    private static Set<String> buildReachableStopIds(Graph graph, String stopFrom, LocalTime startTime) {
         Set<String> reachable = new HashSet<>();
 
         PriorityQueue<Node> queue = new PriorityQueue<>(Comparator.comparing(n -> n.time));
@@ -240,8 +239,57 @@ public class Main {
         return reachable;
     }
 
-    // Construit le graphe a partir des horaires
-    public static void buildGraph(Graph graph) {
+    private static Edge getEdgeBetween(Graph graph, Node from, Node to) {
+        return graph.getEdges(from).stream()
+                .filter(e -> e.to.equals(to))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static void printItinerary(Graph graph, List<Node> path) {
+        for (int i = 0; i < path.size() - 1; i++) {
+            Node from = path.get(i);
+            Node to = path.get(i + 1);
+            Edge edge = getEdgeBetween(graph, from, to);
+
+            if (edge == null) {
+                continue;
+            }
+
+            Stop stopFrom = stops.get(from.stopId);
+            Stop stopTo = stops.get(to.stopId);
+            String fromName = stopFrom != null ? stopFrom.name : "?";
+            String toName = stopTo != null ? stopTo.name : "?";
+
+            if ("WAIT".equals(edge.mode)) {
+                System.out.printf("Wait at %s from %s to %s%n",
+                        fromName, from.time, to.time);
+                continue;
+            }
+
+            if ("WALK".equals(edge.mode) || "TRANSFER".equals(edge.mode)) {
+                if (fromName.equals(toName)) {
+                    System.out.printf("Transfer at %s from %s to %s%n",
+                            fromName, from.time, to.time);
+                } else {
+                    System.out.printf("Walk from %s (%s) to %s (%s)%n",
+                            fromName, from.time,
+                            toName, to.time);
+                }
+                continue;
+            }
+
+            String operator = edge.company != null ? edge.company : "?";
+            String lineNumber = edge.line != null ? edge.line : "?";
+            System.out.printf("Take %s %s %s from %s (%s) to %s (%s)%n",
+                    operator, edge.mode, lineNumber,
+                    fromName, from.time,
+                    toName, to.time);
+        }
+    }
+
+    // Builds the graph from the schedules
+    private static void buildGraph(Graph graph) {
         for (List<StopTime> stopTime : stopTimes.values()) {
             if (stopTime.size() < 2) {
                 continue;
@@ -282,8 +330,8 @@ public class Main {
                     company = trip.routeId.split("-")[0];
                 }
 
-                Node fromNode = new Node(from.stopId, from.departureTime);
-                Node toNode = new Node(to.stopId, to.departureTime);
+                Node fromNode = new Node(from.stopId, from.departureTime, from.tripId);
+                Node toNode = new Node(to.stopId, to.departureTime, to.tripId);
 
                 graph.addEdge(fromNode, toNode, duration, mode, company, line);
             }
@@ -300,113 +348,84 @@ public class Main {
     public static void main(String[] args) {
         resetData();
 
-        if (args.length != 3) {
-            System.out.println("Format : <sourceStop> <targetStop> <HH:mm>");
-            System.exit(1);
+        Scanner input = new Scanner(System.in);
+
+        System.out.println("Please enter the departure stop:");
+        String stopStart = input.nextLine();
+
+        System.out.println("Please enter the arrival stop:");
+        String stopEnd = input.nextLine();
+
+        System.out.println("Please enter the departure time <HH:mm>:");
+        String timeDepartureString = input.nextLine();
+        LocalTime timeDeparture;
+        try {
+            timeDeparture = LocalTime.parse(timeDepartureString);
+        } catch (DateTimeParseException e) {
+            System.out.println("Invalid time format. Please use HH:mm.");
+            return;
         }
 
-        String stopStart = args[0];
-        String stopEnd = args[1];
-        LocalTime heureDepart = LocalTime.parse(args[2]);
+        loadData(timeDeparture);
+        List<List<String>> stopIds = getStopIDs(stopStart, stopEnd);
 
-        List<List<String>> stopIds = loadStopData(stopStart, stopEnd);
         List<String> startStopIds = stopIds.get(0);
         List<String> endStopIds = stopIds.get(1);
 
         if (startStopIds.isEmpty()) {
-            System.out.println("Aucun arret de départ trouvé pour : " + stopStart);
+            System.out.println("No departure stop found for: " + stopStart);
             return;
         }
 
         if (endStopIds.isEmpty()) {
-            System.out.println("Aucun arret d'arrivée trouvé pour : " + stopEnd);
+            System.out.println("No arrival stop found for: " + stopEnd);
             return;
         }
 
-        String stopStartID = startStopIds.get(0);
-
-        loadOtherData(heureDepart);
-
-        System.out.println("Nombre de trips charges : " + stopTimes.size());
-        int totalStopTimes = stopTimes.values().stream().mapToInt(List::size).sum();
-        System.out.println("Nombre total de StopTime : " + totalStopTimes);
-
-        System.out.println("\nCreation du graphe...");
+        // Builds the route graph
         Graph graph = new Graph();
         buildGraph(graph);
-        System.out.println("Creation du graphe terminee.\n");
-
-        System.out.println("Recherche des arrets atteignables depuis " + stopStart);
-        Set<String> reachableStops = buildReachableStopIds(graph, stopStartID, heureDepart);
-        System.out.println("Nombre d'arrets pertinents pour WALK : " + reachableStops.size());
-
-        System.out.println("\nAjout des aretes de marche...");
+        addWaitingEdges(graph);
+        Set<String> reachableStops = new HashSet<>();
+        for (String currentStartStopId : startStopIds) {
+            reachableStops.addAll(buildReachableStopIds(graph, currentStartStopId, timeDeparture));
+        }
         addWalkingEdges(graph, stops.values(), reachableStops);
-        System.out.println("Ajout termine.\n");
-
-        System.out.println("Ajout des aretes TRANSFER...");
         addTransferEdges(graph, stops.values());
-        System.out.println("Ajout TRANSFER termine.\n");
 
         Map<String, String> stopNames = new HashMap<>();
         for (Stop s : stops.values()) {
             stopNames.put(s.id, s.name);
         }
 
-        System.out.println("\nRecherche d'itineraire de " + stopStart + " a " + stopEnd + " a " + heureDepart + ".\n");
-        List<Node> chemin = null;
+        System.out.println("\nSearching itinerary from " + stopStart + " to " + stopEnd + " at " + timeDeparture + ".\n");
+        List<List<Node>> ways = new ArrayList<>();
+
         for (String currentStartStopId : startStopIds) {
             for (String currentEndStopId : endStopIds) {
-                chemin = ItineraryFinder.findItinerary(graph, currentStartStopId, currentEndStopId, heureDepart, stopNames);
-                if (chemin != null && chemin.size() >= 2) {
-                    break;
+                List<Node> way = ItineraryFinder.findItinerary(graph, currentStartStopId, currentEndStopId, timeDeparture, stopNames);
+
+                if (way != null && way.size() >= 2) {
+                    ways.add(way);
                 }
-            }
-            if (chemin != null && chemin.size() >= 2) {
-                break;
             }
         }
 
-        if (chemin == null || chemin.size() < 2) {
-            System.out.println("Aucun itineraire trouve.");
+        if (ways.isEmpty()) {
+            System.out.println("No itinerary found.");
             return;
         }
 
-        for (int i = 0; i < chemin.size() - 1; i++) {
-            Node from = chemin.get(i);
-            Node to = chemin.get(i + 1);
+        List<Node> bestWay = ways.stream()
+            .min(Comparator.<List<Node>, LocalTime>comparing(way -> way.get(way.size() - 1).time)
+                    .thenComparingInt(List::size))
+            .orElse(null);
 
-            Stop stopFrom = stops.get(from.stopId);
-            Stop stopTo = stops.get(to.stopId);
-            String fromName = stopFrom != null ? stopFrom.name : "?";
-            String toName = stopTo != null ? stopTo.name : "?";
-
-            if (fromName.equals(toName)) {
-                continue;
-            }
-
-            Edge edge = graph.getEdges(from).stream()
-                .filter(e -> e.to.equals(to))
-                .findFirst()
-                .orElse(null);
-            if (edge == null) {
-                continue;
-            }
-
-            String mode = edge.mode;
-            String operator = edge.company != null ? edge.company : "?";
-            String lineNumber = edge.line != null ? edge.line : "?";
-
-            if ("WALK".equals(mode) || "TRANSFER".equals(mode)) {
-                System.out.printf("Walk from %s (%s) to %s (%s)%n",
-                    fromName, from.time,
-                    toName, to.time);
-            } else {
-                System.out.printf("Take %s %s %s from %s (%s) to %s (%s)%n",
-                    operator, mode, lineNumber,
-                    fromName, from.time,
-                    toName, to.time);
-            }
+        if (bestWay == null || bestWay.size() < 2) {
+            System.out.println("No itinerary found.");
+            return;
         }
+
+        printItinerary(graph, bestWay);
     }
 }

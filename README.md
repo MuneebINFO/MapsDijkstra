@@ -58,12 +58,18 @@ Cette commande compile tous les fichiers `.java` du dossier `src` et place les f
 
 Pour lancer le programme avec une requête d’itinéraire, tapez :
 ```
-java -Xmx2G -cp build Main "ArretDepart" "ArretArrivee" HH:mm
+java -Xmx2G -cp build Main
 ```
+Le programme vous demandera ensuite d'entrer le nom de l'arrêt de départ, le nom de l'arrêt d'arrivée et l'heure de départ. Attention à l'orthographe.
 
 Exemple :
 ```
-java -Xmx2G -cp build Main "GARE DE L'OUEST" "DELTA" 08:00
+Please enter the departure stop:
+GARE DE L'OUEST
+Please enter the arrival stop:
+LOUISE
+Please enter the departure time <HH:mm>:
+10:00
 ```
 
 ---

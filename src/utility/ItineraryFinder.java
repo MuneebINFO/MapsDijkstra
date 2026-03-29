@@ -22,7 +22,9 @@ public class ItineraryFinder {
         LocalTime seuilMax = time.plusMinutes(20);
 
         for (Node startNode : candidateStarts) {
-            if (startNode.time.isAfter(seuilMax)) break;
+            if (startNode.time.isAfter(seuilMax)) {
+                break;
+            }
 
             // lancer Dijkstra
             Dijkstra.findPath(graph, startNode);
@@ -33,7 +35,9 @@ public class ItineraryFinder {
             String targetName = stopNames.getOrDefault(stopTo, "?");
 
             for (Node node : graph.getAllNodes()) {
-                if (!Dijkstra.distances.containsKey(node)) continue;
+                if (!Dijkstra.distances.containsKey(node)) {
+                    continue;
+                }
 
                 String nodeName = stopNames.getOrDefault(node.stopId, "?");
 
@@ -48,13 +52,13 @@ public class ItineraryFinder {
                 }
             }
 
-            // Si un chemin valide a été trouvé
+            // Si un way valide a été trouvé
             if (endNode != null) {
                 return Dijkstra.getShortestPathTo(endNode);
             }
         }
 
-        // Aucun chemin trouvé
+        // Aucun way trouvé
         // System.out.println("Aucun itinéraire trouvé de " + stopFrom + " vers " + stopTo + ".");
         return List.of();
     }
