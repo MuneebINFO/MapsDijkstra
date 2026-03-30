@@ -1,5 +1,6 @@
 package utility;
 
+// Stores the identity and coordinates of a stop.
 public class Stop {
     public String id;
     public String name;

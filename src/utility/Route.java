@@ -1,5 +1,6 @@
 package utility;
 
+// Stores the public information of a transit route.
 public class Route {
     public String id;
     public String shortName;

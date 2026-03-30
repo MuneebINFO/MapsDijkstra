@@ -2,6 +2,7 @@ package utility;
 
 import java.time.LocalTime;
 
+// Stores the scheduled time of a trip at a given stop.
 public class StopTime {
     public String tripId;
     public LocalTime departureTime;

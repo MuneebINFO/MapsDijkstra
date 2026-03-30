@@ -1,13 +1,17 @@
 package utility;
 
 import java.time.LocalTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 
+// Selects the best itinerary between two stops within a limited departure window.
 public class ItineraryFinder {
 
-    // Trouve le plus court itinéraire entre deux arrêts
+    // Finds the shortest itinerary between two stops for the requested departure time.
     public static List<Node> findItinerary(Graph graph, String stopFrom, String stopTo, LocalTime time, Map<String, String> stopNames) {
-        // Construire la liste des candidats au départ
+        // Build the list of candidate departure nodes.
         List<Node> candidateStarts = new ArrayList<>();
         for (Node node : graph.getAllNodes()) {
             if (node.stopId.equals(stopFrom) && !node.time.isBefore(time)) {
@@ -15,10 +19,10 @@ public class ItineraryFinder {
             }
         }
 
-        // Trier les candidats
+        // Sort candidates chronologically so the search checks the earliest departures first.
         candidateStarts.sort(Comparator.comparing(n -> n.time));
 
-        // Tester les départs dans les 20 minutes maximum
+        // Only test departures within the next 20 minutes.
         LocalTime seuilMax = time.plusMinutes(20);
 
         for (Node startNode : candidateStarts) {
@@ -26,10 +30,10 @@ public class ItineraryFinder {
                 break;
             }
 
-            // lancer Dijkstra
+            // Run Dijkstra from the current departure candidate.
             Dijkstra.findPath(graph, startNode);
 
-            // trouver le Node d’arrivée atteignable le plus tôt
+            // Find the earliest reachable arrival node for the requested destination name.
             Node endNode = null;
             int minDuration = Integer.MAX_VALUE;
             String targetName = stopNames.getOrDefault(stopTo, "?");
@@ -41,26 +45,23 @@ public class ItineraryFinder {
 
                 String nodeName = stopNames.getOrDefault(node.stopId, "?");
 
-                // Chercher tous les nœuds associés au bon arrêt d’arrivée
+                // Check every node that belongs to the requested destination stop name.
                 if (nodeName.equals(targetName)) {
                     int duration = Dijkstra.getDurationTo(node);
 
                     if (duration < minDuration) {
                         minDuration = duration;
-                        endNode = node;  // garde le plus rapide
+                        endNode = node; // Keep the fastest arrival found so far.
                     }
                 }
             }
 
-            // Si un way valide a été trouvé
+            // Return immediately once a valid path has been found for this start node.
             if (endNode != null) {
                 return Dijkstra.getShortestPathTo(endNode);
             }
         }
 
-        // Aucun way trouvé
-        // System.out.println("Aucun itinéraire trouvé de " + stopFrom + " vers " + stopTo + ".");
         return List.of();
     }
-
 }

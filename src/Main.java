@@ -1,4 +1,3 @@
-
 import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalTime;
@@ -11,11 +10,21 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
-import java.util.Set;
 import java.util.Scanner;
+import java.util.Set;
 
-import utility.*;
+import utility.CsvLoader;
+import utility.Edge;
+import utility.GeoUtils;
+import utility.Graph;
+import utility.ItineraryFinder;
+import utility.Node;
+import utility.Route;
+import utility.Stop;
+import utility.StopTime;
+import utility.Trip;
 
+// Application entry point for loading GTFS data and computing itineraries.
 public class Main {
 
     private static final double MAX_WALKING_DISTANCE = 750.0;
@@ -28,6 +37,7 @@ public class Main {
     private static Map<String, Trip> trips = new HashMap<>();
     private static Map<String, List<StopTime>> stopTimes = new HashMap<>();
 
+    // Loads all GTFS datasets that are needed for the requested departure time.
     private static void loadData(LocalTime timeDeparture) {
         try {
             System.out.println("\nLoading data:");
@@ -47,7 +57,7 @@ public class Main {
         }
     }
 
-    // Returns the IDs of the departure and arrival stops
+    // Returns the IDs of the departure and arrival stops.
     private static List<List<String>> getStopIDs(String nomDepart, String nomArrivee) {
         List<String> allStopStartID = new ArrayList<>();
         List<String> allStopEndID = new ArrayList<>();
@@ -68,7 +78,7 @@ public class Main {
         return allStopIDs;
     }
 
-    // Adds WALK edges in the graph between nearby stops
+    // Adds walking edges between nearby stops that are reachable from the start area.
     private static void addWalkingEdges(Graph graph, Collection<Stop> stops, Set<String> relevantStopIds) {
         Map<String, List<Node>> stopIdToNodes = new HashMap<>();
         for (Node node : graph.getAllNodes()) {
@@ -103,6 +113,7 @@ public class Main {
         }
     }
 
+    // Adds transfer edges between distinct stop IDs that are physically very close.
     private static void addTransferEdges(Graph graph, Collection<Stop> stops) {
         final double MAX_DISTANCE_METERS = 100.0;
         final double GRID_SIZE_METERS = 100.0;
@@ -148,6 +159,7 @@ public class Main {
         }
     }
 
+    // Adds wait edges inside the same stop so the pathfinder can board later trips.
     private static void addWaitingEdges(Graph graph) {
         Map<String, List<Node>> stopIdToNodes = new HashMap<>();
         for (Node node : graph.getAllNodes()) {
@@ -169,6 +181,7 @@ public class Main {
         }
     }
 
+    // Connects each node to the earliest compatible node that satisfies the minimum duration.
     private static void addTimedEdges(Graph graph, List<Node> fromNodes, List<Node> toNodes, int minimumDuration, String mode) {
         if (fromNodes.isEmpty() || toNodes.isEmpty()) {
             return;
@@ -197,12 +210,14 @@ public class Main {
         }
     }
 
+    // Converts geographic coordinates to a simple grid key used for nearby-stop lookup.
     private static String spatialKey(double lat, double lon, double gridSizeMeters) {
         int x = (int) (lat * 100000 / gridSizeMeters);
         int y = (int) (lon * 100000 / gridSizeMeters);
         return x + "_" + y;
     }
 
+    // Returns the neighboring grid cell key relative to a base key.
     private static String shiftKey(String baseKey, int dx, int dy) {
         String[] parts = baseKey.split("_");
         int x = Integer.parseInt(parts[0]) + dx;
@@ -210,6 +225,7 @@ public class Main {
         return x + "_" + y;
     }
 
+    // Collects the stop IDs that can be reached from a start stop after the requested time.
     private static Set<String> buildReachableStopIds(Graph graph, String stopFrom, LocalTime startTime) {
         Set<String> reachable = new HashSet<>();
 
@@ -239,6 +255,7 @@ public class Main {
         return reachable;
     }
 
+    // Looks up the graph edge that connects two consecutive nodes in a computed path.
     private static Edge getEdgeBetween(Graph graph, Node from, Node to) {
         return graph.getEdges(from).stream()
                 .filter(e -> e.to.equals(to))
@@ -246,6 +263,7 @@ public class Main {
                 .orElse(null);
     }
 
+    // Prints the itinerary step by step, including waits and transfers.
     private static void printItinerary(Graph graph, List<Node> path) {
         for (int i = 0; i < path.size() - 1; i++) {
             Node from = path.get(i);
@@ -288,7 +306,7 @@ public class Main {
         }
     }
 
-    // Builds the graph from the schedules
+    // Builds the time-expanded graph from the stop times of each trip.
     private static void buildGraph(Graph graph) {
         for (List<StopTime> stopTime : stopTimes.values()) {
             if (stopTime.size() < 2) {
@@ -338,6 +356,7 @@ public class Main {
         }
     }
 
+    // Clears all previously loaded GTFS data before computing a new route.
     private static void resetData() {
         stops.clear();
         routes.clear();
@@ -345,6 +364,7 @@ public class Main {
         stopTimes.clear();
     }
 
+    // Reads the user input, builds the graph, and prints the best itinerary found.
     public static void main(String[] args) {
         resetData();
 
@@ -382,7 +402,7 @@ public class Main {
             return;
         }
 
-        // Builds the route graph
+        // Build the route graph before adding waiting, walking, and transfer edges.
         Graph graph = new Graph();
         buildGraph(graph);
         addWaitingEdges(graph);
@@ -417,9 +437,9 @@ public class Main {
         }
 
         List<Node> bestWay = ways.stream()
-            .min(Comparator.<List<Node>, LocalTime>comparing(way -> way.get(way.size() - 1).time)
-                    .thenComparingInt(List::size))
-            .orElse(null);
+                .min(Comparator.<List<Node>, LocalTime>comparing(way -> way.get(way.size() - 1).time)
+                        .thenComparingInt(List::size))
+                .orElse(null);
 
         if (bestWay == null || bestWay.size() < 2) {
             System.out.println("No itinerary found.");

@@ -2,13 +2,13 @@ package utility;
 
 import java.util.Objects;
 
-// Représente une arête du graphe (une liaison entre deux nœuds) 
+// Represents a directed connection between two nodes in the graph.
 public class Edge {
     public Node from;
     public Node to;
-    public int duration; // en secondes
-    public String mode; // BUS, TRAIN, WALK, etc.
-    public String company; // STIB, SNCB, ...
+    public int duration; // Duration in seconds.
+    public String mode; // BUS, TRAIN, WALK, and so on.
+    public String company; // Operator name, for example STIB or SNCB.
     public String line;
 
     public Edge(Node from, Node to, int duration, String mode, String company, String line) {
@@ -20,6 +20,7 @@ public class Edge {
         this.line = line;
     }
 
+    // Convenience constructor for edges that do not need company or line information.
     public Edge(Node from, Node to, int duration, String mode) {
         this(from, to, duration, mode, null, null);
     }
@@ -31,18 +32,21 @@ public class Edge {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Edge)) return false;
+        if (this == o) {
+            return true;
+        }
+        if (!(o instanceof Edge)) {
+            return false;
+        }
         Edge edge = (Edge) o;
-        return duration == edge.duration &&
-           from.equals(edge.from) &&
-           to.equals(edge.to) &&
-           mode.equals(edge.mode);
+        return duration == edge.duration
+                && from.equals(edge.from)
+                && to.equals(edge.to)
+                && mode.equals(edge.mode);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(from, to, duration, mode);
     }
-
 }

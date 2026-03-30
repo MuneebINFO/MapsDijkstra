@@ -1,16 +1,23 @@
 package utility;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
 
+// Runs Dijkstra's algorithm on the time-expanded transit graph.
 public class Dijkstra {
 
-    // Stocke la distance minimale connue depuis la source vers chaque nœud
+    // Stores the currently known shortest distance from the source to each node.
     public static Map<Node, Integer> distances;
 
-    // Stocke le noeud précédent dans le plus court way pour chaque nœud
-    public static Map<Node, Node> previous;
+    // Stores the previous node for each node in the shortest-path tree.
+    private static Map<Node, Node> previous;
 
-    // Calcule les plus courts ways depuis le nœud source vers tous les autres nœuds du graphe
+    // Computes the shortest paths from the source node to every reachable node.
     public static void findPath(Graph graph, Node source) {
         distances = new HashMap<>();
         previous = new HashMap<>();
@@ -23,11 +30,10 @@ public class Dijkstra {
             Node current = queue.poll();
 
             for (Edge edge : graph.getEdges(current)) {
-
                 Node neighbor = edge.to;
                 int newDist = distances.get(current) + edge.duration;
 
-                // Si un way plus court vers le voisin est trouvé
+                // Update the queue when a shorter path to a neighbor is found.
                 if (!distances.containsKey(neighbor) || newDist < distances.get(neighbor)) {
                     distances.put(neighbor, newDist);
                     previous.put(neighbor, current);
@@ -37,7 +43,7 @@ public class Dijkstra {
         }
     }
 
-    // Construit le plus court way depuis la source vers un nœud donné
+    // Reconstructs the shortest path from the source to a destination node.
     public static List<Node> getShortestPathTo(Node destination) {
         List<Node> path = new ArrayList<>();
         for (Node at = destination; at != null; at = previous.get(at)) {
@@ -47,6 +53,7 @@ public class Dijkstra {
         return path;
     }
 
+    // Returns the computed duration to a destination, or Integer.MAX_VALUE when unreachable.
     public static int getDurationTo(Node destination) {
         return distances.getOrDefault(destination, Integer.MAX_VALUE);
     }

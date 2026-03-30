@@ -1,35 +1,44 @@
 package utility;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
-// Représente un graphe orienté
+// Represents the directed graph used for pathfinding.
 public class Graph {
 
-    //chaque noeud est associé à l’ensemble de ses arêtes sortantes
+    // Associates each node with the set of its outgoing edges.
     private Map<Node, Set<Edge>> adj;
 
     public Graph() {
         this.adj = new HashMap<>();
-    }    
+    }
 
+    // Ensures that a node exists in the adjacency map.
     public void addNode(Node node) {
         adj.putIfAbsent(node, new HashSet<>());
     }
-    
+
+    // Adds a fully described directed edge to the graph.
     public void addEdge(Node from, Node to, int duration, String mode, String company, String line) {
         addNode(from);
         addNode(to);
         adj.get(from).add(new Edge(from, to, duration, mode, company, line));
     }
 
+    // Adds a directed edge when operator metadata is not required.
     public void addEdge(Node from, Node to, int duration, String mode) {
         addEdge(from, to, duration, mode, null, null);
     }
 
-    public List<Edge> getEdges(Node node) {
+    // Returns the outgoing edges of a node as a list.
+    public ArrayList<Edge> getEdges(Node node) {
         return new ArrayList<>(adj.getOrDefault(node, Set.of()));
-    }    
+    }
 
+    // Returns every node currently present in the graph.
     public Set<Node> getAllNodes() {
         return adj.keySet();
     }
